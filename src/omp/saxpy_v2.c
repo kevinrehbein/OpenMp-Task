@@ -14,7 +14,7 @@ double get_time();
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr,
-            "./saxpy_simd N\n");
+            "Formato de entrada: ./saxpy_simd N\n");
         return EXIT_FAILURE;
     }
 
