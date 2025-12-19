@@ -1,59 +1,66 @@
 #!/bin/bash
 
-# ===============================
-# Configurações
-# ===============================
-N_VALUES=(100000 500000 1000000)
-T_VALUES=(1 2 4 8 16)
-k_VALUES=(20 24 28)
+# 1. Configurações
+
+N_FIXED=500000
+K_FIXED=28
+T_FIXED=4
+
+# Chunks para Dynamic e Guided
+CHUNKS_LIST=(1 4 16 64)
+
 REPS=5
 
-A_V1="./src/omp/tarefa_a/a_v1.c"
-A_V2="./src/omp/tarefa_a/a_v2.c"
-A_V3="./src/omp/tarefa_a/a_v3.c"
+CSV_A="resultados_tarefa_a.csv"
 
-CSV_C_V1="c_v1.csv"
-CSV_C_V2="c_v2.csv"
-CSV_C_V3="c_v3.csv"
+# Binários
+BIN_A_V1="./a_v1" # Static
+BIN_A_V2="./a_v2" # Dynamic
+BIN_A_V3="./a_v3" # Guided
 
-C_V1="./src/seq/saxpy_v1"
-C_V2="./src/omp/saxpy_v2"
-C_V3="./src/omp/saxpy_v3"
+# 2. Execução
+rm -f $CSV_A
 
-CSV_C_V1="c_v1.csv"
-CSV_C_V2="c_v2.csv"
-CSV_C_V3="c_v3.csv"
+echo "=========================================="
+echo "   COMPARATIVO: STATIC vs DYNAMIC vs GUIDED"
+echo "=========================================="
+echo "Config: N=$N_FIXED | K=$K_FIXED | Threads=$T_FIXED"
+echo "Chunks (Dyn/Gui): ${CHUNKS_LIST[*]}"
+echo ""
 
-# Cabeçalhos dos CSVs
+echo "Variante,N,K,Threads,Chunk,Rep,Tempo" > $CSV_A
 
-echo "N,execucao,tempo(ms)" > $CSV_V1
-echo "N,execucao,tempo(ms)" > $CSV_V2
-echo "N,T,execucao,tempo(ms)" > $CSV_V3
+echo "--- Executando STATIC ---"
+for ((r=1; r<=REPS; r++)); do
+    echo "Static  | Threads: $T_FIXED | Rep: $r/$REPS"
+    # Static não recebe parametro chunk, passamos apenas N K T
+    # No CSV, registramos Chunk como 0 para indicar 'padrão/fixo'
+    t_val=$($BIN_A_V1 $N_FIXED $K_FIXED $T_FIXED)
+    echo "static,$N_FIXED,$K_FIXED,$T_FIXED,0,$r,$t_val" >> $CSV_A
+done
+echo ""
 
-# Execuções
+echo "--- Executando DYNAMIC e GUIDED ---"
 
-for N in "${N_VALUES[@]}"; do
-    for ((i=1; i<=REPS; i++)); do
-
+for C in "${CHUNKS_LIST[@]}"; do
+    echo ">>> Testando Chunk Size: $C"
+    
+    for ((r=1; r<=REPS; r++)); do
         
+        # Dynamic
+        echo "Dynamic | Chunk: $C | Rep: $r/$REPS"
+        t_val=$($BIN_A_V2 $N_FIXED $K_FIXED $T_FIXED $C)
+        echo "dynamic,$N_FIXED,$K_FIXED,$T_FIXED,$C,$r,$t_val" >> $CSV_A
 
-        # ------ Tarefa C ------
-
-        # v1 (sequencial)
-        time_C_v1=$($C_V1 $N)
-        echo "$N,$i,$time_C_v1" >> $CSV_V1
-
-        # v2 (SIMD)
-        time_C_v2=$($C_V2 $N)
-        echo "$N,$i,$time_C_v2" >> $CSV_V2
-
-        # v3 (OMP + SIMD)
-        for T in "${T_VALUES[@]}"; do
-            time_C_v3=$($C_V3 $N $T)
-            echo "$N,$T,$i,$time_C_v3" >> $CSV_V3
-        done
+        # Guided
+        echo "Guided  | Chunk: $C | Rep: $r/$REPS"
+        t_val=$($BIN_A_V3 $N_FIXED $K_FIXED $T_FIXED $C)
+        echo "guided,$N_FIXED,$K_FIXED,$T_FIXED,$C,$r,$t_val" >> $CSV_A
 
     done
+    echo ""
 done
-
-echo "Execuções finalizadas."
+echo ""
+echo "=========================================="
+echo "TESTE FINALIZADO."
+echo "Resultados em: $CSV_A"

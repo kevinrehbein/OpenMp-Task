@@ -1,114 +1,106 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-sns.set(style="whitegrid", font_scale=1.2)
-
-# ===============================
-# Leitura
-# ===============================
-v1 = pd.read_csv("saxpy_v1.csv")
-v2 = pd.read_csv("saxpy_v2.csv")
-v3 = pd.read_csv("saxpy_v3.csv")
+import os
 
 # ===============================
-# Conversão para microssegundos
+# Configurações Estéticas
 # ===============================
-for df in [v1, v2, v3]:
-    df["tempo_us"] = df["tempo"] * 1e6
+sns.set(style="whitegrid", context="talk", font_scale=1.1)
+plt.rcParams['figure.figsize'] = (10, 6)
+plt.rcParams['axes.grid'] = True
+plt.rcParams['grid.alpha'] = 0.3
+plt.rcParams['lines.linewidth'] = 2.5
+plt.rcParams['lines.markersize'] = 9
 
 # ===============================
-# Estatísticas
+# 1. Carregar Dados
 # ===============================
-def stats(df, group_cols):
-    return (
-        df.groupby(group_cols)["tempo_us"]
-        .agg(["mean", "std"])
-        .reset_index()
-        .rename(columns={
-            "mean": "media_us",
-            "std": "desvio_padrao_us"
-        })
-    )
+FILE_NAME = "resultados_tarefa_a.csv"
 
-stats_v1 = stats(v1, ["N"])
-stats_v2 = stats(v2, ["N"])
-stats_v3 = stats(v3, ["N", "T"])
+if not os.path.exists(FILE_NAME):
+    print(f"ERRO: Arquivo '{FILE_NAME}' não encontrado.")
+    exit()
 
-print("\n=== V1 (µs) ===")
-print(stats_v1)
-print("\n=== V2 (µs) ===")
-print(stats_v2)
-print("\n=== V3 (µs) ===")
-print(stats_v3)
+df = pd.read_csv(FILE_NAME)
 
-# ===============================
-# Funções de plot
-# ===============================
-def scatter_plot(df, x, y, hue, title, filename):
-    plt.figure(figsize=(9, 6))
-    sns.scatterplot(
-        data=df, x=x, y=y, hue=hue,
-        s=80, alpha=0.8
-    )
-    plt.ylabel("Tempo (µs)")
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(filename, dpi=150)
-    plt.close()
+# Filtrar para garantir que estamos olhando o cenário correto
+# (Ajuste N, K e Threads conforme o que você rodou no run.sh)
+N_VAL = 1000000
+K_VAL = 28
+THREAD_VAL = 16
 
-def box_plot(df, x, y, hue, title, filename):
-    plt.figure(figsize=(9, 6))
-    sns.boxplot(data=df, x=x, y=y, hue=hue)
-    plt.ylabel("Tempo (µs)")
-    plt.title(title)
-    plt.tight_layout()
-    plt.savefig(filename, dpi=150)
-    plt.close()
+df_filtered = df[
+    (df['N'] == N_VAL) & 
+    (df['K'] == K_VAL) & 
+    (df['Threads'] == THREAD_VAL)
+].copy()
+
+if df_filtered.empty:
+    print(f"AVISO: Nenhum dado encontrado para N={N_VAL}, K={K_VAL}, Threads={THREAD_VAL}.")
+    print("Verifique se o run.sh rodou com esses parâmetros.")
+    exit()
 
 # ===============================
-# V1 – Sequencial
+# 2. Transformação dos Dados (O Truque)
 # ===============================
-scatter_plot(
-    v1, "N", "tempo_us", None,
-    "SAXPY v1 – Tempo por N (µs)",
-    "v1_scatter_us.png"
-)
 
-box_plot(
-    v1, "N", "tempo_us", None,
-    "SAXPY v1 – Boxplot (µs)",
-    "v1_boxplot_us.png"
-)
+# 1. Calcular a média do Static (que está salvo com Chunk=0)
+static_mean = df_filtered[df_filtered['Variante'] == 'static']['Tempo'].mean()
+
+# 2. Descobrir quais chunks foram testados nas outras variantes
+chunks_existentes = df_filtered[df_filtered['Chunk'] > 0]['Chunk'].unique()
+chunks_existentes.sort()
+
+# 3. Criar dados artificiais para o Static
+# Para cada chunk existente (1, 4, 16, 64), criamos uma entrada para o 'static'
+# com o tempo médio calculado. Isso fará ele ser plotado como uma linha.
+dados_static_expandidos = []
+for c in chunks_existentes:
+    dados_static_expandidos.append({
+        'Variante': 'static',
+        'N': N_VAL,
+        'K': K_VAL,
+        'Threads': THREAD_VAL,
+        'Chunk': c,
+        'Rep': 1, # Dummy
+        'Tempo': static_mean
+    })
+
+# 4. Juntar tudo: Dynamic/Guided originais + Static expandido
+df_dynamic_guided = df_filtered[df_filtered['Variante'].isin(['dynamic', 'guided'])].copy()
+df_static_novo = pd.DataFrame(dados_static_expandidos)
+df_final = pd.concat([df_dynamic_guided, df_static_novo], ignore_index=True)
 
 # ===============================
-# V2 – SIMD
+# 3. Plotagem
 # ===============================
-scatter_plot(
-    v2, "N", "tempo_us", None,
-    "SAXPY v2 (SIMD) – Tempo por N (µs)",
-    "v2_scatter_us.png"
-)
+plt.figure()
 
-box_plot(
-    v2, "N", "tempo_us", None,
-    "SAXPY v2 (SIMD) – Boxplot (µs)",
-    "v2_boxplot_us.png"
+# Agora plotamos TUDO junto. O 'static' será tratado igual aos outros.
+sns.lineplot(
+    data=df_final, 
+    x='Chunk', 
+    y='Tempo', 
+    hue='Variante', 
+    style='Variante', 
+    markers=True, 
+    dashes=False # Garante linhas sólidas para todos
 )
 
 # ===============================
-# V3 – OpenMP + SIMD
+# 4. Ajustes Finais
 # ===============================
-scatter_plot(
-    v3, "N", "tempo_us", "T",
-    "SAXPY v3 (OMP + SIMD) – Tempo por N e Threads (µs)",
-    "v3_scatter_us.png"
-)
+plt.xscale('log')
+plt.xticks(chunks_existentes, [str(c) for c in chunks_existentes]) # Labels bonitos
+plt.minorticks_off()
 
-box_plot(
-    v3, "N", "tempo_us", "T",
-    "SAXPY v3 (OMP + SIMD) – Boxplot (µs)",
-    "v3_boxplot_us.png"
-)
+plt.title(f"Comparativo de Políticas de Escalonamento\n(N={N_VAL}, K={K_VAL}, Threads={THREAD_VAL})", fontsize=16, pad=20)
+plt.ylabel("Tempo de Execução (s)", fontsize=14)
+plt.xlabel("Tamanho do Chunk (Escala Log)", fontsize=14)
+plt.legend(title="Variante", loc='best', frameon=True)
 
-print("\nGráficos em microssegundos gerados com sucesso.")
+OUTPUT_FILE = "grafico_comparativo_todas_linhas.png"
+plt.tight_layout()
+plt.savefig(OUTPUT_FILE, dpi=300)
+print(f"Gráfico gerado: {OUTPUT_FILE}")
