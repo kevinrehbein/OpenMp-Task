@@ -3,6 +3,7 @@
 #include <time.h>
 #include <math.h>
 #include <omp.h>
+#include <linux/time.h>
 
 
 void saxpy_omp_simd(int N, float a, float *x, float *y);

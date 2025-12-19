@@ -2,18 +2,19 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <omp.h>
+#include <linux/time.h>
 
-
-void saxpy(int n, float a, const float *x, float *y);
+void saxpy_simd(int N, float a, float *x, float *y);
 
 double get_time();
 
-// ./saxpy_v1 N 
+// ./saxpy_simd N 
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr,
-            "Formato de entrada: ./saxpy_seq N\n");
+            "Formato de entrada: ./saxpy_simd N\n");
         return EXIT_FAILURE;
     }
 
@@ -38,10 +39,10 @@ int main(int argc, char *argv[]) {
     float a = 2.0f;
 
     // Warm-up (ignorado)
-    saxpy(N, a, x, y);
+    saxpy_simd(N, a, x, y);
 
     double start = get_time();
-    saxpy(N, a, x, y);
+    saxpy_simd(N, a, x, y);
     double end = get_time();
 
 
@@ -54,11 +55,13 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void saxpy(int n, float a, const float *x, float *y) {
-    for (int i = 0; i < n; i++) {
+void saxpy_simd(int N, float a, float *x, float *y) {
+    #pragma omp simd
+    for (int i = 0; i < N; i++) {
         y[i] = a * x[i] + y[i];
     }
 }
+
 
 double get_time() {
     struct timespec ts;
