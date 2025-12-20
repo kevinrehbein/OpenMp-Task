@@ -1,4 +1,4 @@
-#OpenMP Task
+# OpenMP Task
 
 Integrantes: Gustavo Estivalet, Kevin Rehbein
 
@@ -27,6 +27,20 @@ ippd/
 Tarefa A - Laço irregular e política de schedule
 
 Tarefa C - Vetorização com simd
+
+## Entrega:
+
+    - 5 execuções para cada caso para obtenção dos dados brutos;
+
+    - Plotagem de gráficos, partindo da média de execuções;
+
+    - Visualiação: nuvem, boxplot, linear;
+
+    -Estrutura de projeto completa: Reprodutibilidade, Compilação, Execução, Plotagem, Análise dos Resultados;
+
+    - Comparação da versão SIMD sobre a sequencial;
+
+    - Análise do impacto de schedule e chunk;
 
 
 ## Executa o fluxo completo (dependências, setup, venv, compilação e plotagem).
