@@ -1,43 +1,54 @@
-#!/bin/bash
+# ==========================================
+# Configurações de Compilação
+# ==========================================
+CC = gcc
+# -O3: Otimização agressiva
+# -march=native: Habilita instruções específicas da sua CPU (AVX2/SIMD)
+# -Wall: Mostra todos os avisos (boa prática)
+CFLAGS = -O3 -march=native -Wall
+OMP_FLAGS = -fopenmp
+LIBS = -lm
 
-# Parâmetros definidos no roteiro
-NS=(100000 500000 1000000)
-THREADS=(1 2 4 8 16)
-REPS=5
-OUTPUT="resultados_brutos.csv"
+# ==========================================
+# Caminhos e Alvos
+# ==========================================
+# O seu run.sh espera os binários nestes locais específicos
+BIN_V1 = src/seq/saxpy_v1
+BIN_V2 = src/omp/saxpy_v2
+BIN_V3 = src/omp/saxpy_v3
 
-# Cabeçalho do CSV
-echo "Versao,N,Threads,Tempo" > $OUTPUT
+# Fontes (ajuste os nomes se necessário)
+SRC_V1 = src/seq/saxpy_v1.c
+SRC_V2 = src/omp/saxpy_v2.c
+SRC_V3 = src/omp/saxpy_v3.c
 
-echo "Iniciando benchmarks..."
+# ==========================================
+# Regras de Compilação
+# ==========================================
 
-# 1. Execução Sequencial (v1)
-for n in "${NS[@]}"; do
-    echo "Rodando v1 (Seq) para N=$n"
-    for i in $(seq 1 $REPS); do
-        tempo=$(./bin/saxpy_v1 $n)
-        echo "v1,$n,1,$tempo" >> $OUTPUT
-    done
-done
+# Alvo padrão: compila tudo
+all: $(BIN_V1) $(BIN_V2) $(BIN_V3)
 
-# 2. Execução SIMD (v2)
-for n in "${NS[@]}"; do
-    echo "Rodando v2 (SIMD) para N=$n"
-    for i in $(seq 1 $REPS); do
-        tempo=$(./bin/saxpy_v2 $n)
-        echo "v2,$n,1,$tempo" >> $OUTPUT
-    done
-done
+# Compilação Sequencial (v1)
+$(BIN_V1): $(SRC_V1)
+	$(CC) $(CFLAGS) $< -o $@ $(LIBS)
 
-# 3. Execução OMP + SIMD (v3)
-for n in "${NS[@]}"; do
-    for t in "${THREADS[@]}"; do
-        echo "Rodando v3 (OMP+SIMD) para N=$n com T=$t"
-        for i in $(seq 1 $REPS); do
-            tempo=$(./bin/saxpy_v3 $n $t)
-            echo "v3,$n,$t,$tempo" >> $OUTPUT
-        done
-    done
-done
+# Compilação SIMD (v2) - requer flags de OpenMP para o #pragma omp simd
+$(BIN_V2): $(SRC_V2)
+	$(CC) $(CFLAGS) $(OMP_FLAGS) $< -o $@ $(LIBS)
 
-echo "Concluído! Resultados salvos em $OUTPUT"
+# Compilação OMP + SIMD (v3)
+$(BIN_V3): $(SRC_V3)
+	$(CC) $(CFLAGS) $(OMP_FLAGS) $< -o $@ $(LIBS)
+
+# ==========================================
+# Utilidades
+# ==========================================
+
+# Limpa os binários gerados
+clean:
+	rm -f $(BIN_V1) $(BIN_V2) $(BIN_V3)
+
+# Atalho para garantir que a pasta csv exista (usada pelo seu run.sh)
+setup:
+	mkdir -p csv png
